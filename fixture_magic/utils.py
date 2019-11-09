@@ -59,7 +59,7 @@ def serialize_fully(serialize_me, seen):
     serialize_me.reverse()
 
 
-def add_to_serialize_list(objs, serialize_me, seen):
+def add_to_serialize_list(objs, serialize_me, seen, prepend=False):
     for obj in objs:
         if obj is None:
             continue
@@ -75,5 +75,8 @@ def add_to_serialize_list(objs, serialize_me, seen):
         key = "%s:%s:%s" % (obj._meta.app_label, model_name, obj.pk)
 
         if key not in seen:
-            serialize_me.append(obj)
+            if prepend:
+                serialize_me.insert(0, obj)
+            else:
+                serialize_me.append(obj)
             seen.add(key)
