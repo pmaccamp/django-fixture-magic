@@ -12,7 +12,7 @@ except ImportError:
     from django.apps import apps as loading
 import json
 
-from fixture_magic.utils import (add_to_serialize_list, serialize_fully)
+from fixture_magic.utils import (add_to_serialize_list, serialize_fully, reorder_json)
 
 
 class Command(BaseCommand):
@@ -27,10 +27,12 @@ class Command(BaseCommand):
         # Required Args
         parser.add_argument(dest='model',
                             help='Name of the model, with app name first.'
-                            ' Eg "app_name.model_name"')
-        parser.add_argument('--ids', '-i',
-                            dest='ids', default=None, nargs='*',
+                                 ' Eg "app_name.model_name"')
+        parser.add_argument('--ids', '-i', dest='ids', default=None, nargs='*',
                             help='Use a list of ids e.g. 0 1 2 3')
+
+        parser.add_argument('--order', dest='order', default=None,
+                            help='Use a json list of app_name.model_name e.g. [\"app1.model1\", \"app2.model2\"]')
 
         # Optional args
         parser.add_argument('--kitchensink', '-k',
@@ -41,7 +43,7 @@ class Command(BaseCommand):
                             action='store_true', dest='natural',
                             default=False,
                             help='Use natural foreign and primary keys '
-                            'if they are available.')
+                                 'if they are available.')
         parser.add_argument('--natural-primary',
                             action='store_true', dest='natural_primary',
                             default=False,
@@ -77,13 +79,16 @@ class Command(BaseCommand):
                 raise CommandError("Specify model as `appname.modelname")
             query = options['query']
             ids = options['ids']
+
+            if options['order']:
+                options['order'] = json.loads(options['order'])
             if ids and query:
                 raise CommandError(error_text % 'either use query or id list, not both')
             if not (ids or query):
                 raise CommandError(error_text % 'must pass list of --ids or a json --query')
         except IndexError:
             raise CommandError(error_text % 'No object_class or filter clause supplied.')
-        except ValueError:
+        except ValueError as e:
             raise CommandError(
                 error_text %
                 "object_class must be provided in the following format: app_name.model_name"
@@ -127,7 +132,7 @@ class Command(BaseCommand):
                     except ObjectDoesNotExist:
                         pass
 
-        add_to_serialize_list(objs, serialize_me, seen)
+        add_to_serialize_list(objs, serialize_me, seen, prepend=True)
 
         if options.get('follow_fk', True):
             serialize_fully(serialize_me, seen)
@@ -140,8 +145,15 @@ class Command(BaseCommand):
         natural_primary = (options.get('natural', False) or
                            options.get('natural_primary', False))
 
-        self.stdout.write(serialize(options.get('format', 'json'),
-                                    [o for o in serialize_me if o is not None],
-                                    indent=4,
-                                    use_natural_foreign_keys=natural_foreign,
-                                    use_natural_primary_keys=natural_primary))
+        data = serialize(options.get('format', 'json'),
+                         [o for o in serialize_me if o is not None],
+                         indent=4,
+                         use_natural_foreign_keys=natural_foreign,
+                         use_natural_primary_keys=natural_primary)
+
+        data = reorder_json(
+            json.loads(data),
+            options.get('order', []),
+        )
+
+        self.stdout.write(json.dumps(data, indent=4))
