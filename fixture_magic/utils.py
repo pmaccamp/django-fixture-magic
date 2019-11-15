@@ -42,17 +42,26 @@ def get_fields(obj):
         return []
 
 
-def serialize_fully(serialize_me, seen):
+def serialize_fully(serialize_me, seen, ignore=[], additional_serialization_objects_fnc=None):
     index = 0
 
     while index < len(serialize_me):
         for field in get_fields(serialize_me[index]):
-            if isinstance(field, models.ForeignKey):
-                add_to_serialize_list(
-                    [serialize_me[index].__getattribute__(field.name)],
-                    serialize_me,
-                    seen
-                )
+            if field.name not in ignore:
+                if isinstance(field, models.ForeignKey):
+                    add_to_serialize_list(
+                        [serialize_me[index].__getattribute__(field.name)],
+                        serialize_me,
+                        seen
+                    )
+
+                    # allow user to add additional data apart from standard foreign keys
+                    if additional_serialization_objects_fnc and \
+                            callable(additional_serialization_objects_fnc):
+                        extra_objs = additional_serialization_objects_fnc(
+                            serialize_me[index].__getattribute__(field.name))
+                        if extra_objs:
+                            add_to_serialize_list(extra_objs, serialize_me, seen)
 
         index += 1
 
