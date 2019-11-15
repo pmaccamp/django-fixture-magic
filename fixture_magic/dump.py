@@ -3,7 +3,6 @@ from __future__ import print_function
 from django.core.exceptions import FieldError, ObjectDoesNotExist
 from django.core.management.base import CommandError
 from django.core.serializers import serialize
-
 from fixture_magic.compat import get_all_related_objects
 
 try:
@@ -19,6 +18,8 @@ def dump_object(model,
                 query,
                 ids,
                 order=[],
+                ignore=[],
+                additional_serialization_objects_fnc=None,
                 format='json',
                 kitchensink=True,
                 follow_fk=True,
@@ -72,7 +73,7 @@ def dump_object(model,
     if kitchensink:
         fields = get_all_related_objects(dump_me)
 
-        related_fields = [rel.get_accessor_name() for rel in fields]
+        related_fields = [rel.get_accessor_name() for rel in fields if rel.name not in ignore]
 
         for obj in objs:
             for rel in related_fields:
@@ -81,6 +82,14 @@ def dump_object(model,
                         add_to_serialize_list(getattr(obj, rel).all(), serialize_me, seen)
                     else:
                         add_to_serialize_list([getattr(obj, rel)], serialize_me, seen)
+
+                        # allow user to add additional data apart from standard foreign keys
+                        if additional_serialization_objects_fnc and \
+                                callable(additional_serialization_objects_fnc):
+                            extra_objs = additional_serialization_objects_fnc(getattr(obj, rel))
+                            if extra_objs:
+                                add_to_serialize_list(extra_objs, serialize_me, seen)
+
                 except FieldError:
                     pass
                 except ObjectDoesNotExist:
@@ -89,7 +98,7 @@ def dump_object(model,
     add_to_serialize_list(objs, serialize_me, seen, prepend=True)
 
     if follow_fk:
-        serialize_fully(serialize_me, seen)
+        serialize_fully(serialize_me, seen, ignore, additional_serialization_objects_fnc)
     else:
         # reverse list to match output of serializez_fully
         serialize_me.reverse()
@@ -99,15 +108,19 @@ def dump_object(model,
     natural_primary = (natural or
                        natural_primary)
 
-    data = serialize(format,
-                     [o for o in serialize_me if o is not None],
-                     indent=4,
-                     use_natural_foreign_keys=natural_foreign,
-                     use_natural_primary_keys=natural_primary)
+    if format:
+        data = serialize(format,
+                         [o for o in serialize_me if o is not None],
+                         indent=4,
+                         use_natural_foreign_keys=natural_foreign,
+                         use_natural_primary_keys=natural_primary)
 
-    data = reorder_json(
-        json.loads(data),
-        order,
-    )
+        data = reorder_json(
+            json.loads(data),
+            order,
+        )
 
-    return json.dumps(data, indent=4)
+        return json.dumps(data, indent=4)
+
+    # return unserialized objs
+    return [o for o in serialize_me if o is not None]
