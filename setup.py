@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='django-fixture-magic',
-    version='0.3.0',
+    version='0.4.0',
     description='A few extra management tools to handle fixtures.',
     long_description=open('README.rst').read(),
     author='Dave Dash',
