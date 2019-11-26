@@ -31,7 +31,7 @@ class Command(BaseCommand):
         parser.add_argument('--ids', '-i', dest='ids', default=None, nargs='*',
                             help='Use a list of ids e.g. 0 1 2 3')
 
-        parser.add_argument('--order', dest='order', default=None,
+        parser.add_argument('--order', dest='order', default=[],
                             help='Use a json list of app_name.model_name e.g. [\"app1.model1\", \"app2.model2\"]')
 
         # Optional args
