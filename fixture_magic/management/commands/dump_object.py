@@ -34,6 +34,9 @@ class Command(BaseCommand):
         parser.add_argument('--order', dest='order', default=[],
                             help='Use a json list of app_name.model_name e.g. [\"app1.model1\", \"app2.model2\"]')
 
+        parser.add_argument('--ignore', dest='ignore', default=[],
+                            help='Use a json list of field names to ignore e.g. [\"field1\", \"field2\"]')
+
         # Optional args
         parser.add_argument('--kitchensink', '-k',
                             action='store_true', dest='kitchensink',
@@ -82,6 +85,11 @@ class Command(BaseCommand):
 
             if options['order']:
                 options['order'] = json.loads(options['order'])
+
+            ignore = []
+            if options['ignore']:
+                ignore = json.loads(options['ignore'])
+
             if ids and query:
                 raise CommandError(error_text % 'either use query or id list, not both')
             if not (ids or query):
@@ -118,7 +126,7 @@ class Command(BaseCommand):
         if options.get('kitchensink'):
             fields = get_all_related_objects(dump_me)
 
-            related_fields = [rel.get_accessor_name() for rel in fields]
+            related_fields = [rel.get_accessor_name() for rel in fields if rel.name not in ignore]
 
             for obj in objs:
                 for rel in related_fields:
@@ -135,7 +143,7 @@ class Command(BaseCommand):
         add_to_serialize_list(objs, serialize_me, seen, prepend=True)
 
         if options.get('follow_fk', True):
-            serialize_fully(serialize_me, seen)
+            serialize_fully(serialize_me, seen, ignore)
         else:
             # reverse list to match output of serializez_fully
             serialize_me.reverse()
